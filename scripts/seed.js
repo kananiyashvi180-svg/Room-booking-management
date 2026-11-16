@@ -1,8 +1,10 @@
 const mongoose = require("mongoose");
 
-const MONGODB_URI =
-  process.env.MONGODB_URI ||
-  "mongodb+srv://yashvi279:yashvi279@cluster0.v0jpuyu.mongodb.net/equipment_booking?retryWrites=true&w=majority";
+// Target both equipment_booking and test to guarantee availability regardless of connection string URI
+const DB_URIS = [
+  process.env.MONGODB_URI || "mongodb+srv://yashvi279:yashvi279@cluster0.v0jpuyu.mongodb.net/equipment_booking?retryWrites=true&w=majority",
+  "mongodb+srv://yashvi279:yashvi279@cluster0.v0jpuyu.mongodb.net/test?retryWrites=true&w=majority",
+];
 
 const ResourceSchema = new mongoose.Schema(
   {
@@ -20,8 +22,54 @@ const ResourceSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const Resource =
-  mongoose.models.Resource || mongoose.model("Resource", ResourceSchema);
+const BookingSchema = new mongoose.Schema(
+  {
+    bookingReference: { type: String, required: true, unique: true },
+    resource: { type: mongoose.Schema.Types.ObjectId, ref: "Resource", required: true },
+    requesterName: { type: String, required: true },
+    requesterEmail: { type: String, required: true },
+    purpose: { type: String, required: true },
+    startDate: { type: Date, required: true },
+    endDate: { type: Date, required: true },
+    startTime: { type: String, required: true },
+    endTime: { type: String, required: true },
+    quantity: { type: Number, required: true },
+    status: {
+      type: String,
+      enum: ["Pending", "Approved", "Rejected", "Cancelled", "Completed"],
+      default: "Pending",
+    },
+    managerNotes: { type: String },
+    issuedQuantity: { type: Number, default: 0 },
+    returnedQuantity: { type: Number, default: 0 },
+    expectedReturnDate: { type: Date },
+    actualReturnDate: { type: Date },
+  },
+  { timestamps: true }
+);
+
+const ReturnSchema = new mongoose.Schema(
+  {
+    booking: { type: mongoose.Schema.Types.ObjectId, ref: "Booking", required: true },
+    resource: { type: mongoose.Schema.Types.ObjectId, ref: "Resource", required: true },
+    returnedQuantity: { type: Number, required: true },
+    returnDate: { type: Date, required: true },
+    condition: { type: String, required: true },
+    notes: { type: String },
+  },
+  { timestamps: true }
+);
+
+const UsageHistorySchema = new mongoose.Schema(
+  {
+    resource: { type: mongoose.Schema.Types.ObjectId, ref: "Resource", required: true },
+    booking: { type: mongoose.Schema.Types.ObjectId, ref: "Booking", required: true },
+    returnRecord: { type: mongoose.Schema.Types.ObjectId, ref: "Return" },
+    action: { type: String, required: true },
+    details: { type: String },
+  },
+  { timestamps: true }
+);
 
 const sampleResources = [
   // Laptops (4)
@@ -32,7 +80,7 @@ const sampleResources = [
     images: ["https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80"],
     location: "Computer Science Building, Tech Desk 101",
     totalQuantity: 8,
-    available: 8,
+    available: 6,
     instructions: "Return with 140W MagSafe charger and protective sleeve. Do not disable FileVault.",
     maintenanceNotes: "Quarterly battery diagnostic and MDM profile review.",
     isActive: true,
@@ -44,7 +92,7 @@ const sampleResources = [
     images: ["https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=800&q=80"],
     location: "Engineering Library, Room 202",
     totalQuantity: 12,
-    available: 12,
+    available: 10,
     instructions: "Includes 130W USB-C charger and HDMI dongle. Back up external files before return.",
     maintenanceNotes: "Thermal paste replaced and OS re-imaged biannually.",
     isActive: true,
@@ -56,7 +104,7 @@ const sampleResources = [
     images: ["https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=800&q=80"],
     location: "Mechanical Engineering Lab 305",
     totalQuantity: 6,
-    available: 6,
+    available: 5,
     instructions: "Heavy duty CAD laptop. Handle with two hands and store in Pelican case.",
     maintenanceNotes: "ISV graphics driver updates installed every semester.",
     isActive: true,
@@ -82,7 +130,7 @@ const sampleResources = [
     images: ["https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800&q=80"],
     location: "School of Communication & Media, Room 204",
     totalQuantity: 5,
-    available: 5,
+    available: 4,
     instructions: "Store in padded camera bag. Always turn off camera body before swapping lenses.",
     maintenanceNotes: "Sensor cleaned with wet swab kit after every field assignment.",
     isActive: true,
@@ -94,7 +142,7 @@ const sampleResources = [
     images: ["https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=800&q=80"],
     location: "Film Studies Production Vault",
     totalQuantity: 3,
-    available: 3,
+    available: 2,
     instructions: "Requires certified camera handling training before checkout. External battery included.",
     maintenanceNotes: "Cooling fan filter cleared and sensor verified every 60 operational hours.",
     isActive: true,
@@ -120,7 +168,7 @@ const sampleResources = [
     images: ["https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=800&q=80"],
     location: "Central Campus AV Support, Facility 12",
     totalQuantity: 4,
-    available: 4,
+    available: 3,
     instructions: "Allow 60 seconds auto-cool down cycle before packing into transit flight case.",
     maintenanceNotes: "Electrostatic air filter inspected monthly.",
     isActive: true,
@@ -146,7 +194,7 @@ const sampleResources = [
     images: ["https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&q=80"],
     location: "Electrical Engineering Advanced Lab 412",
     totalQuantity: 8,
-    available: 8,
+    available: 7,
     instructions: "Calibrate 10:1 passive probes on reference terminal before measurement.",
     maintenanceNotes: "NIST-traceable calibration certificate renewed annually.",
     isActive: true,
@@ -170,7 +218,7 @@ const sampleResources = [
     images: ["https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&q=80"],
     location: "Cell Biology Department, Lab Suite 104",
     totalQuantity: 15,
-    available: 15,
+    available: 14,
     instructions: "Clean 100x immersion oil objective with lens paper and ether-free lens cleaner immediately after session.",
     maintenanceNotes: "Stage alignment and optical prisms calibrated regularly.",
     isActive: true,
@@ -196,7 +244,7 @@ const sampleResources = [
     images: ["https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&q=80"],
     location: "Administration Wing, 3rd Floor East",
     totalQuantity: 1,
-    available: 1,
+    available: 0,
     instructions: "Reserved for faculty meetings, thesis defenses, and VIP institutional presentations.",
     maintenanceNotes: "AV touch control interface and acoustic panels tested weekly.",
     isActive: true,
@@ -246,7 +294,7 @@ const sampleResources = [
     images: ["https://images.unsplash.com/photo-1519861531473-9200262188bf?w=800&q=80"],
     location: "Athletics Fieldhouse, Cage 3",
     totalQuantity: 5,
-    available: 5,
+    available: 4,
     instructions: "Ensure all 8 basketballs are counted and returned in the ventilated mesh duffle bag.",
     maintenanceNotes: "Ball air pressures calibrated to 8.0 PSI.",
     isActive: true,
@@ -260,7 +308,7 @@ const sampleResources = [
     images: ["https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=800&q=80"],
     location: "Campus Radio & Digital Media Center, Studio B",
     totalQuantity: 3,
-    available: 3,
+    available: 2,
     instructions: "Handle boom arms gently. Ensure XLR lock switches are depressed before disconnecting cables.",
     maintenanceNotes: "Microphone foam windscreens sanitized after each booking.",
     isActive: true,
@@ -279,23 +327,296 @@ const sampleResources = [
   },
 ];
 
-async function seed() {
+async function seedDatabase(uri, label) {
+  console.log(`\n========================================`);
+  console.log(`Connecting to [${label}]: ${uri.replace(/:[^:]*@/, ":****@")}`);
+  const conn = await mongoose.createConnection(uri).asPromise();
+  console.log(`Connected to [${label}]!`);
+
+  const Resource = conn.model("Resource", ResourceSchema);
+  const Booking = conn.model("Booking", BookingSchema);
+  const Return = conn.model("Return", ReturnSchema);
+  const UsageHistory = conn.model("UsageHistory", UsageHistorySchema);
+
+  // 1. Seed Resources
+  await Resource.deleteMany({});
+  const insertedResources = await Resource.insertMany(sampleResources);
+  console.log(`✓ Inserted ${insertedResources.length} resources into [${label}].`);
+
+  // Map resources by name for booking relationships
+  const resMap = {};
+  insertedResources.forEach((r) => {
+    resMap[r.name] = r;
+  });
+
+  // 2. Clear old bookings, returns, history
+  await Booking.deleteMany({});
+  await Return.deleteMany({});
+  await UsageHistory.deleteMany({});
+
+  const now = new Date();
+  const past5d = new Date(Date.now() - 5 * 86400000);
+  const past3d = new Date(Date.now() - 3 * 86400000);
+  const past1d = new Date(Date.now() - 1 * 86400000);
+  const future2d = new Date(Date.now() + 2 * 86400000);
+  const future5d = new Date(Date.now() + 5 * 86400000);
+  const future7d = new Date(Date.now() + 7 * 86400000);
+
+  // 3. Create realistic Bookings
+  const sampleBookings = [
+    // Completed Bookings (with full Return record)
+    {
+      bookingReference: "EQ-MBP-7812",
+      resource: resMap["MacBook Pro 16\" M3 Max"]._id,
+      requesterName: "Yashvi Kanani",
+      requesterEmail: "yashvi@college.edu",
+      purpose: "Campus Hackathon ML Code Review and testing",
+      startDate: past5d,
+      endDate: past3d,
+      startTime: "09:00",
+      endTime: "18:00",
+      quantity: 1,
+      status: "Completed",
+      issuedQuantity: 1,
+      returnedQuantity: 1,
+      expectedReturnDate: past3d,
+      actualReturnDate: past3d,
+    },
+    {
+      bookingReference: "EQ-SONY-4401",
+      resource: resMap["Sony Alpha A7 IV Mirrorless Camera Kit"]._id,
+      requesterName: "Marcus Vance",
+      requesterEmail: "m.vance@campus.edu",
+      purpose: "Annual Convocation Photography & Video Coverage",
+      startDate: past5d,
+      endDate: past1d,
+      startTime: "10:00",
+      endTime: "16:00",
+      quantity: 1,
+      status: "Completed",
+      issuedQuantity: 1,
+      returnedQuantity: 1,
+      expectedReturnDate: past1d,
+      actualReturnDate: past1d,
+    },
+    {
+      bookingReference: "EQ-SCOPE-9023",
+      resource: resMap["Keysight InfiniiVision DSOX1204G Oscilloscope"]._id,
+      requesterName: "Dr. Elena Rostova",
+      requesterEmail: "e.rostova@campus.edu",
+      purpose: "Digital Signal Processing Final Lab Examination",
+      startDate: past3d,
+      endDate: past1d,
+      startTime: "08:30",
+      endTime: "13:30",
+      quantity: 1,
+      status: "Completed",
+      issuedQuantity: 1,
+      returnedQuantity: 1,
+      expectedReturnDate: past1d,
+      actualReturnDate: past1d,
+    },
+
+    // Currently Issued Bookings (On Time)
+    {
+      bookingReference: "EQ-MBP-8921",
+      resource: resMap["MacBook Pro 16\" M3 Max"]._id,
+      requesterName: "David Chen",
+      requesterEmail: "d.chen@campus.edu",
+      purpose: "Deep Learning Graduate Thesis Model Training",
+      startDate: past1d,
+      endDate: future2d,
+      startTime: "09:00",
+      endTime: "17:00",
+      quantity: 2,
+      status: "Approved",
+      issuedQuantity: 2,
+      returnedQuantity: 0,
+      expectedReturnDate: future2d,
+    },
+    {
+      bookingReference: "EQ-DELL-3109",
+      resource: resMap["Dell XPS 15 9530 Workstation"]._id,
+      requesterName: "Sophia Martinez",
+      requesterEmail: "s.martinez@campus.edu",
+      purpose: "Architectural 3D CAD Rendering Project",
+      startDate: now,
+      endDate: future5d,
+      startTime: "10:00",
+      endTime: "19:00",
+      quantity: 2,
+      status: "Approved",
+      issuedQuantity: 2,
+      returnedQuantity: 0,
+      expectedReturnDate: future5d,
+    },
+    {
+      bookingReference: "EQ-BOARD-0012",
+      resource: resMap["Executive Boardroom A (16 Pax)"]._id,
+      requesterName: "Prof. Arthur Pendelton",
+      requesterEmail: "a.pendelton@campus.edu",
+      purpose: "Quarterly Faculty Academic Board Meeting",
+      startDate: now,
+      endDate: future2d,
+      startTime: "13:00",
+      endTime: "17:00",
+      quantity: 1,
+      status: "Approved",
+      issuedQuantity: 1,
+      returnedQuantity: 0,
+      expectedReturnDate: future2d,
+    },
+
+    // Overdue Returns (Expected return was in the past, not yet checked back in)
+    {
+      bookingReference: "EQ-CANON-2045",
+      resource: resMap["Canon EOS R5 C Cinema Camera"]._id,
+      requesterName: "Liam O'Connor",
+      requesterEmail: "l.oconnor@campus.edu",
+      purpose: "Student Short Film Production — Principal Photography",
+      startDate: past5d,
+      endDate: past1d,
+      startTime: "09:00",
+      endTime: "20:00",
+      quantity: 1,
+      status: "Approved",
+      issuedQuantity: 1,
+      returnedQuantity: 0,
+      expectedReturnDate: past1d,
+    },
+    {
+      bookingReference: "EQ-AUDIO-5521",
+      resource: resMap["Shure SM7B Multi-Host Podcast Studio Kit"]._id,
+      requesterName: "Chloe Nguyen",
+      requesterEmail: "c.nguyen@campus.edu",
+      purpose: "Student Union Radio Weekly Broadcast & Episode Recording",
+      startDate: past5d,
+      endDate: past3d,
+      startTime: "14:00",
+      endTime: "18:00",
+      quantity: 1,
+      status: "Approved",
+      issuedQuantity: 1,
+      returnedQuantity: 0,
+      expectedReturnDate: past3d,
+    },
+
+    // Pending Approval Queue
+    {
+      bookingReference: "EQ-PEND-1011",
+      resource: resMap["Lenovo ThinkPad P16 Gen 2"]._id,
+      requesterName: "Aiden Scott",
+      requesterEmail: "a.scott@campus.edu",
+      purpose: "Aerospace Structural Stress Simulation in Ansys",
+      startDate: future2d,
+      endDate: future5d,
+      startTime: "09:00",
+      endTime: "17:00",
+      quantity: 1,
+      status: "Pending",
+      issuedQuantity: 0,
+      returnedQuantity: 0,
+    },
+    {
+      bookingReference: "EQ-PEND-1012",
+      resource: resMap["Epson PowerLite L730U Laser Projector"]._id,
+      requesterName: "Zara Al-Mansoor",
+      requesterEmail: "z.almansoor@campus.edu",
+      purpose: "International Student Cultural Gala Presentation",
+      startDate: future5d,
+      endDate: future7d,
+      startTime: "16:00",
+      endTime: "22:00",
+      quantity: 1,
+      status: "Pending",
+      issuedQuantity: 0,
+      returnedQuantity: 0,
+    },
+    {
+      bookingReference: "EQ-PEND-1013",
+      resource: resMap["Olympus CX23 LED Binocular Microscope"]._id,
+      requesterName: "Rohan Varma",
+      requesterEmail: "r.varma@campus.edu",
+      purpose: "Microbiology Yeast Fermentation Lab Practicum",
+      startDate: future2d,
+      endDate: future5d,
+      startTime: "11:00",
+      endTime: "15:00",
+      quantity: 1,
+      status: "Pending",
+      issuedQuantity: 0,
+      returnedQuantity: 0,
+    },
+    {
+      bookingReference: "EQ-PEND-1014",
+      resource: resMap["Wilson NCAA Official Basketball & Agility Kit"]._id,
+      requesterName: "Coach Travis Miller",
+      requesterEmail: "t.miller@campus.edu",
+      purpose: "Inter-College Basketball Invitational Team Drills",
+      startDate: future2d,
+      endDate: future5d,
+      startTime: "07:00",
+      endTime: "11:00",
+      quantity: 1,
+      status: "Pending",
+      issuedQuantity: 0,
+      returnedQuantity: 0,
+    },
+  ];
+
+  const insertedBookings = await Booking.insertMany(sampleBookings);
+  console.log(`✓ Inserted ${insertedBookings.length} bookings into [${label}].`);
+
+  // 4. Create Return and UsageHistory records for completed bookings
+  const completedBookings = insertedBookings.filter((b) => b.status === "Completed");
+  for (const b of completedBookings) {
+    const ret = await Return.create({
+      booking: b._id,
+      resource: b.resource,
+      returnedQuantity: b.returnedQuantity,
+      returnDate: b.actualReturnDate,
+      condition: "Excellent",
+      notes: "Checked in by Yashvi Kanani. All components inspected and cleaned.",
+    });
+
+    await UsageHistory.create({
+      resource: b.resource,
+      booking: b._id,
+      returnRecord: ret._id,
+      action: "Returned",
+      details: `Returned ${b.returnedQuantity} unit(s) in Excellent condition by ${b.requesterName}`,
+      createdAt: b.actualReturnDate,
+    });
+  }
+
+  // 5. Create UsageHistory for currently issued bookings
+  const issuedBookings = insertedBookings.filter((b) => b.issuedQuantity > 0 && b.status === "Approved");
+  for (const b of issuedBookings) {
+    await UsageHistory.create({
+      resource: b.resource,
+      booking: b._id,
+      action: "Issued",
+      details: `Issued ${b.issuedQuantity} unit(s) to ${b.requesterName} (${b.requesterEmail})`,
+      createdAt: b.startDate,
+    });
+  }
+
+  console.log(`✓ Created Returns & Audit Trail entries for [${label}].`);
+  await conn.close();
+}
+
+async function run() {
   try {
-    console.log("Connecting to MongoDB Atlas...");
-    await mongoose.connect(MONGODB_URI);
-    console.log("Connected successfully!");
-
-    // Clear existing resources and replace with full updated 20-item portfolio
-    console.log("Refreshing resource inventory...");
-    await Resource.deleteMany({});
-    await Resource.insertMany(sampleResources);
-
-    console.log(`Successfully seeded ${sampleResources.length} realistic resources across all categories!`);
+    for (const uri of DB_URIS) {
+      const dbLabel = uri.includes("/test") ? "test" : "equipment_booking";
+      await seedDatabase(uri, dbLabel);
+    }
+    console.log("\n🎉 ALL DATABASES FULLY SEEDED WITH 20 RESOURCES & REALISTIC BOOKINGS!");
     process.exit(0);
   } catch (err) {
-    console.error("Seed error:", err);
+    console.error("Seeding failed:", err);
     process.exit(1);
   }
 }
 
-seed();
+run();
