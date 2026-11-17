@@ -3,14 +3,31 @@ import Booking from "@backend/models/Booking";
 import connectDB from "@backend/config/db";
 import type { AnalyticsData, IResource } from "@backend/types";
 
-export async function getAnalytics(): Promise<AnalyticsData> {
+// In-memory server-side cache for high-frequency dashboard navigation
+let cachedAnalytics: { data: AnalyticsData; timestamp: number } | null = null;
+const CACHE_TTL_MS = 15000; // 15 seconds cache
+
+export function invalidateAnalyticsCache() {
+  cachedAnalytics = null;
+}
+
+export async function getAnalytics(forceFresh = false): Promise<AnalyticsData> {
+  const now = Date.now();
+  if (!forceFresh && cachedAnalytics && now - cachedAnalytics.timestamp < CACHE_TTL_MS) {
+    return cachedAnalytics.data;
+  }
+
   await connectDB();
+
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
 
   const [
     totalResources,
     availableResources,
-    totalBookings,
-    pendingRequests,
     bookingsByStatusAgg,
     frequentlyBookedAgg,
     recentBookings,
@@ -22,13 +39,18 @@ export async function getAnalytics(): Promise<AnalyticsData> {
     monthlyAgg,
     categoryAgg,
   ] = await Promise.all([
+    // 1. Total active resources
     Resource.countDocuments({ isActive: true }),
+
+    // 2. Available resources count
     Resource.countDocuments({ isActive: true, available: { $gt: 0 } }),
-    Booking.countDocuments(),
-    Booking.countDocuments({ status: "Pending" }),
+
+    // 3. Status grouping (derives totalBookings & pendingRequests in one pass)
     Booking.aggregate([
       { $group: { _id: "$status", count: { $sum: 1 } } },
     ]),
+
+    // 4. Frequently booked resources (top 6)
     Booking.aggregate([
       { $match: { status: { $in: ["Pending", "Approved", "Completed"] } } },
       { $group: { _id: "$resource", bookingCount: { $sum: 1 } } },
@@ -44,44 +66,58 @@ export async function getAnalytics(): Promise<AnalyticsData> {
       },
       { $unwind: "$resource" },
     ]),
+
+    // 5. Recent bookings (lean + projected fields)
     Booking.find()
-      .populate("resource")
+      .select("bookingReference requesterName requesterEmail purpose startDate endDate status quantity createdAt resource")
+      .populate({ path: "resource", select: "name category location images" })
       .sort({ createdAt: -1 })
       .limit(6)
       .lean(),
-    Booking.find({
+
+    // 6. Overdue bookings count
+    Booking.countDocuments({
       status: "Approved",
       expectedReturnDate: { $lt: new Date(), $exists: true },
-    }).countDocuments(),
-    Booking.find({
+    }),
+
+    // 7. Currently issued count
+    Booking.countDocuments({
       status: "Approved",
       $expr: { $gt: ["$issuedQuantity", "$returnedQuantity"] },
-    }).countDocuments(),
+    }),
+
+    // 8. Recently added resources (lean + projected)
     Resource.find({ isActive: true })
+      .select("name category location totalQuantity available images createdAt")
       .sort({ createdAt: -1 })
       .limit(6)
       .lean(),
+
+    // 9. Upcoming bookings (lean + projected)
     Booking.find({
       status: "Approved",
-      startDate: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+      startDate: { $gte: todayStart },
     })
-      .populate("resource")
+      .select("bookingReference requesterName startDate endDate startTime endTime status quantity resource")
+      .populate({ path: "resource", select: "name category location" })
       .sort({ startDate: 1 })
       .limit(5)
       .lean(),
+
+    // 10. Pending approval queue (lean + projected)
     Booking.find({ status: "Pending" })
-      .populate("resource")
+      .select("bookingReference requesterName purpose quantity startDate endDate resource createdAt")
+      .populate({ path: "resource", select: "name category location images" })
       .sort({ createdAt: -1 })
       .limit(5)
       .lean(),
+
+    // 11. Monthly booking trends
     Booking.aggregate([
       {
         $match: {
-          createdAt: {
-            $gte: new Date(
-              new Date().setMonth(new Date().getMonth() - 6)
-            ),
-          },
+          createdAt: { $gte: sixMonthsAgo },
         },
       },
       {
@@ -94,6 +130,8 @@ export async function getAnalytics(): Promise<AnalyticsData> {
       },
       { $sort: { _id: 1 } },
     ]),
+
+    // 12. Resources by category
     Resource.aggregate([
       { $match: { isActive: true } },
       { $group: { _id: "$category", count: { $sum: 1 } } },
@@ -101,17 +139,16 @@ export async function getAnalytics(): Promise<AnalyticsData> {
     ]),
   ]);
 
-  const bookedResources = await Resource.countDocuments({
-    isActive: true,
-    available: 0,
+  // Derive totalBookings & bookingsByStatus map from single aggregation
+  const bookingsByStatus: Record<string, number> = {};
+  let totalBookings = 0;
+  bookingsByStatusAgg.forEach((s: { _id: string; count: number }) => {
+    bookingsByStatus[s._id] = s.count;
+    totalBookings += s.count;
   });
 
-  const bookingsByStatus: Record<string, number> = {};
-  bookingsByStatusAgg.forEach(
-    (s: { _id: string; count: number }) => {
-      bookingsByStatus[s._id] = s.count;
-    }
-  );
+  const pendingRequests = bookingsByStatus["Pending"] || 0;
+  const bookedResources = Math.max(0, totalResources - availableResources);
 
   const monthlyList = monthlyAgg.map((m: { _id: string; count: number }) => ({
     month: m._id,
@@ -137,7 +174,7 @@ export async function getAnalytics(): Promise<AnalyticsData> {
     }
   );
 
-  return {
+  const result: AnalyticsData = {
     totalResources,
     availableResources,
     bookedResources,
@@ -169,4 +206,7 @@ export async function getAnalytics(): Promise<AnalyticsData> {
     monthlyBookings: monthlyList,
     monthlyTrends: monthlyList,
   };
+
+  cachedAnalytics = { data: result, timestamp: Date.now() };
+  return result;
 }

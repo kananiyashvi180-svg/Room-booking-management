@@ -59,6 +59,7 @@ export default function TopNav() {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={true}
                 className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-all duration-150 whitespace-nowrap ${
                   isActive(item.href)
                     ? "bg-[#E3F2EF] text-[#0B5F58] font-semibold"
@@ -131,6 +132,7 @@ export default function TopNav() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={true}
               onClick={() => setMobileOpen(false)}
               className={`flex items-center px-4 py-2.5 rounded-xl text-sm font-medium my-0.5 transition-all ${
                 isActive(item.href)

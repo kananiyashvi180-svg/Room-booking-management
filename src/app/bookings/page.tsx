@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import BookingTable from "@/components/bookings/BookingTable";
 import BookingForm from "@/components/bookings/BookingForm";
 import ReturnForm from "@/components/returns/ReturnForm";
 import Modal from "@/components/common/Modal";
 import Button from "@/components/common/Button";
-import Loader from "@/components/common/Loader";
 import EmptyState from "@/components/common/EmptyState";
+import { BookingsSkeleton } from "@/components/common/Skeletons";
 import { useBookings } from "@/hooks/useBookings";
 import { useResources } from "@/hooks/useResources";
 import { exportToCSV } from "@/lib/api";
@@ -35,6 +35,7 @@ const STATUSES = [
 
 export default function BookingsPage() {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState("All");
   const [resourceId, setResourceId] = useState("All");
   const [startDate, setStartDate] = useState("");
@@ -43,12 +44,22 @@ export default function BookingsPage() {
   const [returnBooking, setReturnBooking] = useState<IBooking | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const filterParams: Record<string, string> = {};
-  if (search) filterParams.search = search;
-  if (status !== "All") filterParams.status = status;
-  if (resourceId !== "All") filterParams.resource = resourceId;
-  if (startDate) filterParams.startDate = startDate;
-  if (endDate) filterParams.endDate = endDate;
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [search]);
+
+  const filterParams = useMemo(() => {
+    const f: Record<string, string> = {};
+    if (debouncedSearch) f.search = debouncedSearch;
+    if (status !== "All") f.status = status;
+    if (resourceId !== "All") f.resource = resourceId;
+    if (startDate) f.startDate = startDate;
+    if (endDate) f.endDate = endDate;
+    return f;
+  }, [debouncedSearch, status, resourceId, startDate, endDate]);
 
   const { bookings, loading, createBooking, updateStatus, refetch } =
     useBookings(filterParams);
@@ -234,8 +245,17 @@ export default function BookingsPage() {
         </div>
 
         {/* Content Table */}
-        {loading ? (
-          <Loader fullPage text="Retrieving booking requests..." />
+        {loading && bookings.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-[#E4E2DA] p-6 space-y-4">
+            <div className="h-6 w-48 bg-[#E8E6DF] rounded animate-pulse" />
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center justify-between py-3 border-b border-[#E4E2DA]/60 animate-pulse">
+                <div className="h-4 w-40 bg-[#E8E6DF] rounded" />
+                <div className="h-4 w-28 bg-[#E8E6DF] rounded" />
+                <div className="h-6 w-20 bg-[#E8E6DF] rounded-full" />
+              </div>
+            ))}
+          </div>
         ) : bookings.length === 0 ? (
           <EmptyState
             title="No Bookings Recorded"

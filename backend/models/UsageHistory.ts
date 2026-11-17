@@ -23,6 +23,7 @@ const UsageHistorySchema = new Schema<UsageHistoryDocument>(
 UsageHistorySchema.index({ resource: 1 });
 UsageHistorySchema.index({ booking: 1 });
 UsageHistorySchema.index({ createdAt: -1 });
+UsageHistorySchema.index({ booking: 1, resource: 1 });
 
 const UsageHistory: Model<UsageHistoryDocument> =
   mongoose.models.UsageHistory ||

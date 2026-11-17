@@ -13,7 +13,9 @@ export async function checkAvailability(
   excludeBookingId?: string
 ): Promise<AvailabilityResult> {
   await connectDB();
-  const resource = await Resource.findById(resourceId);
+  const resource = await Resource.findById(resourceId)
+    .select("totalQuantity name category")
+    .lean();
   if (!resource) {
     throw new Error("Resource not found");
   }
@@ -29,7 +31,9 @@ export async function checkAvailability(
     query._id = { $ne: excludeBookingId };
   }
 
-  const overlappingBookings = await Booking.find(query);
+  const overlappingBookings = await Booking.find(query)
+    .select("startDate endDate startTime endTime quantity _id")
+    .lean();
 
   let reservedQuantity = 0;
   const conflictingBookingIds: string[] = [];

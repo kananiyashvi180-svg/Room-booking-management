@@ -27,6 +27,11 @@ const ReturnSchema = new Schema<ReturnDocument>(
   { timestamps: true }
 );
 
+ReturnSchema.index({ booking: 1 });
+ReturnSchema.index({ resource: 1 });
+ReturnSchema.index({ createdAt: -1 });
+ReturnSchema.index({ returnDate: -1 });
+
 const Return: Model<ReturnDocument> =
   mongoose.models.Return ||
   mongoose.model<ReturnDocument>("Return", ReturnSchema);

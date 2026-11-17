@@ -50,6 +50,10 @@ const BookingSchema = new Schema<BookingDocument>(
 BookingSchema.index({ resource: 1, startDate: 1, endDate: 1 });
 BookingSchema.index({ status: 1 });
 BookingSchema.index({ requesterEmail: 1 });
+BookingSchema.index({ createdAt: -1 });
+BookingSchema.index({ status: 1, expectedReturnDate: 1 });
+BookingSchema.index({ status: 1, startDate: 1 });
+BookingSchema.index({ status: 1, issuedQuantity: 1, returnedQuantity: 1 });
 
 const Booking: Model<BookingDocument> =
   mongoose.models.Booking ||

@@ -2,8 +2,8 @@
 
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import BookingCalendar from "@/components/bookings/BookingCalendar";
-import Loader from "@/components/common/Loader";
 import Button from "@/components/common/Button";
+import { CalendarSkeleton } from "@/components/common/Skeletons";
 import { useBookings } from "@/hooks/useBookings";
 import { useResources } from "@/hooks/useResources";
 import { Plus, ListFilter, ArrowLeft } from "lucide-react";
@@ -54,8 +54,8 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {loading ? (
-          <Loader fullPage text="Assembling visual calendar matrix..." />
+        {loading && bookings.length === 0 ? (
+          <CalendarSkeleton />
         ) : (
           <BookingCalendar bookings={bookings} resources={resources} />
         )}

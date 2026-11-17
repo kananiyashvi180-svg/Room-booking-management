@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import Loader from "@/components/common/Loader";
 import EmptyState from "@/components/common/EmptyState";
 import BookingStatusBadge from "@/components/bookings/BookingStatusBadge";
+import { AuditTrailSkeleton } from "@/components/common/Skeletons";
 import { bookingsAPI, resourcesAPI, exportToCSV } from "@/lib/api";
 import type { IBooking, IResource } from "@/types";
 import { formatDate } from "@/utils/dateUtils";
@@ -22,16 +22,26 @@ export default function HistoryPage() {
   const [resources, setResources] = useState<IResource[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [resourceFilter, setResourceFilter] = useState("All");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  const loadData = async () => {
-    setLoading(true);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [search]);
+
+  const loadData = async (forceFresh = false) => {
+    if (!bookings.length && !resources.length) {
+      setLoading(true);
+    }
     const [bRes, rRes] = await Promise.all([
-      bookingsAPI.getAll(),
-      resourcesAPI.getAll(),
+      bookingsAPI.getAll(undefined, forceFresh),
+      resourcesAPI.getAll(undefined, forceFresh),
     ]);
 
     if (bRes.success) setBookings((bRes.data as IBooking[]) || []);
@@ -50,10 +60,10 @@ export default function HistoryPage() {
     const reqName = b.requesterName || "";
 
     const matchesSearch =
-      !search ||
-      rName.toLowerCase().includes(search.toLowerCase()) ||
-      bRef.toLowerCase().includes(search.toLowerCase()) ||
-      reqName.toLowerCase().includes(search.toLowerCase());
+      !debouncedSearch ||
+      rName.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      bRef.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      reqName.toLowerCase().includes(debouncedSearch.toLowerCase());
 
     const matchesStatus = statusFilter === "All" || b.status === statusFilter;
     const matchesResource =
@@ -227,8 +237,18 @@ export default function HistoryPage() {
         </div>
 
         {/* Audit Cards List */}
-        {loading ? (
-          <Loader fullPage text="Loading audit timeline..." />
+        {loading && bookings.length === 0 ? (
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-[#E4E2DA] p-6 space-y-4 animate-pulse">
+                <div className="flex justify-between">
+                  <div className="h-4 w-48 bg-[#E8E6DF] rounded" />
+                  <div className="h-6 w-24 bg-[#E8E6DF] rounded-full" />
+                </div>
+                <div className="h-2 w-full bg-[#E8E6DF] rounded-full" />
+              </div>
+            ))}
+          </div>
         ) : filteredBookings.length === 0 ? (
           <EmptyState
             title="No matching audit records"

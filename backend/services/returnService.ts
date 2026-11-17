@@ -2,6 +2,7 @@ import Return from "@backend/models/Return";
 import Booking from "@backend/models/Booking";
 import UsageHistory from "@backend/models/UsageHistory";
 import connectDB from "@backend/config/db";
+import { invalidateAnalyticsCache } from "@backend/services/analyticsService";
 
 export async function getAllReturns(filters: {
   resource?: string;
@@ -14,7 +15,8 @@ export async function getAllReturns(filters: {
   return Return.find(query)
     .populate({ path: "booking", populate: { path: "resource" } })
     .populate("resource")
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
 }
 
 export async function createReturn(data: {
@@ -69,7 +71,10 @@ export async function createReturn(data: {
     details: `${data.returnedQuantity} unit(s) returned in ${data.condition} condition`,
   });
 
+  invalidateAnalyticsCache();
+
   return Return.findById(returnRecord._id)
     .populate({ path: "booking", populate: { path: "resource" } })
-    .populate("resource");
+    .populate("resource")
+    .lean();
 }

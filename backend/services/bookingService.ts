@@ -3,6 +3,7 @@ import UsageHistory from "@backend/models/UsageHistory";
 import connectDB from "@backend/config/db";
 import { generateBookingReference } from "@backend/utils/generateBookingReference";
 import { checkAvailability } from "@backend/services/availabilityService";
+import { invalidateAnalyticsCache } from "@backend/services/analyticsService";
 import type {
   CreateBookingInput,
   UpdateBookingStatusInput,
@@ -35,12 +36,15 @@ export async function getAllBookings(filters: {
     ];
   }
 
-  return Booking.find(query).populate("resource").sort({ createdAt: -1 });
+  return Booking.find(query)
+    .populate("resource")
+    .sort({ createdAt: -1 })
+    .lean();
 }
 
 export async function getBookingById(id: string) {
   await connectDB();
-  return Booking.findById(id).populate("resource");
+  return Booking.findById(id).populate("resource").lean();
 }
 
 export async function createBooking(data: CreateBookingInput) {
@@ -76,6 +80,7 @@ export async function createBooking(data: CreateBookingInput) {
   });
 
   const saved = await booking.save();
+  invalidateAnalyticsCache();
 
   await UsageHistory.create({
     resource: data.resource,
@@ -132,6 +137,7 @@ export async function updateBookingStatus(
   if (data.managerNotes !== undefined) booking.managerNotes = data.managerNotes;
 
   const updated = await booking.save();
+  invalidateAnalyticsCache();
 
   const resObj2 = booking.resource as unknown as { _id?: { toString(): string } };
   const resourceId = resObj2?._id

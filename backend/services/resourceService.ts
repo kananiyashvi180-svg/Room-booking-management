@@ -1,6 +1,7 @@
 import Resource from "@backend/models/Resource";
 import Booking from "@backend/models/Booking";
 import connectDB from "@backend/config/db";
+import { invalidateAnalyticsCache } from "@backend/services/analyticsService";
 import type {
   CreateResourceInput,
   UpdateResourceInput,
@@ -29,12 +30,12 @@ export async function getAllResources(filters: {
     query.available = filters.available ? { $gt: 0 } : 0;
   }
 
-  return Resource.find(query).sort({ createdAt: -1 });
+  return Resource.find(query).sort({ createdAt: -1 }).lean();
 }
 
 export async function getResourceById(id: string) {
   await connectDB();
-  return Resource.findById(id);
+  return Resource.findById(id).lean();
 }
 
 export async function createResource(data: CreateResourceInput) {
@@ -43,15 +44,19 @@ export async function createResource(data: CreateResourceInput) {
     ...data,
     available: data.available ?? data.totalQuantity,
   });
-  return resource.save();
+  const saved = await resource.save();
+  invalidateAnalyticsCache();
+  return saved;
 }
 
 export async function updateResource(id: string, data: UpdateResourceInput) {
   await connectDB();
-  return Resource.findByIdAndUpdate(id, data, {
+  const updated = await Resource.findByIdAndUpdate(id, data, {
     new: true,
     runValidators: true,
   });
+  invalidateAnalyticsCache();
+  return updated;
 }
 
 export async function deleteResource(id: string) {
@@ -63,6 +68,8 @@ export async function deleteResource(id: string) {
   if (activeBookings > 0) {
     throw new Error("Cannot delete resource with active bookings");
   }
-  return Resource.findByIdAndUpdate(id, { isActive: false }, { new: true });
+  const deleted = await Resource.findByIdAndUpdate(id, { isActive: false }, { new: true });
+  invalidateAnalyticsCache();
+  return deleted;
 }
 

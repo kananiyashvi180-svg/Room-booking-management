@@ -1,13 +1,35 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import StatsCard from "@/components/dashboard/StatsCard";
-import BookingChart from "@/components/dashboard/BookingChart";
 import RecentBookings from "@/components/dashboard/RecentBookings";
 import Loader from "@/components/common/Loader";
 import Button from "@/components/common/Button";
 import BookingStatusBadge from "@/components/bookings/BookingStatusBadge";
+import { DashboardSkeleton, SkeletonBlock } from "@/components/common/Skeletons";
 import { useAnalytics } from "@/hooks/useAnalytics";
+
+const BookingChart = dynamic(
+  () => import("@/components/dashboard/BookingChart"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <div className="lg:col-span-7 bg-white rounded-2xl border border-[#E4E2DA] p-6 h-[340px] flex flex-col justify-between">
+          <SkeletonBlock className="h-4 w-40" />
+          <SkeletonBlock className="h-[230px] w-full rounded-xl" />
+        </div>
+        <div className="lg:col-span-5 bg-white rounded-2xl border border-[#E4E2DA] p-6 h-[340px] flex flex-col justify-between">
+          <SkeletonBlock className="h-4 w-40" />
+          <div className="flex items-center justify-center h-[230px]">
+            <SkeletonBlock className="h-36 w-36 rounded-full" />
+          </div>
+        </div>
+      </div>
+    ),
+  }
+);
 import {
   Package,
   CheckCircle,
@@ -76,9 +98,9 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {loading && <Loader fullPage text="Loading dashboard metrics..." />}
+        {loading && !analytics && <DashboardSkeleton />}
 
-        {error && (
+        {error && !analytics && (
           <div className="bg-[#FFEDD5] border border-orange-200 rounded-2xl p-4 text-xs text-[#9A3412] flex items-center justify-between">
             <span>{error}. Check database credentials and network connectivity.</span>
             <Button size="sm" variant="outline" onClick={refetch}>

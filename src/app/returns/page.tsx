@@ -5,8 +5,8 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import ReturnForm from "@/components/returns/ReturnForm";
 import Modal from "@/components/common/Modal";
 import Button from "@/components/common/Button";
-import Loader from "@/components/common/Loader";
 import EmptyState from "@/components/common/EmptyState";
+import { ReturnsSkeleton } from "@/components/common/Skeletons";
 import { returnsAPI, bookingsAPI, exportToCSV } from "@/lib/api";
 import type { IReturn, IBooking, IResource } from "@/types";
 import { formatDate, isOverdue } from "@/utils/dateUtils";
@@ -31,11 +31,13 @@ export default function ReturnsPage() {
   const [search, setSearch] = useState("");
   const [conditionFilter, setConditionFilter] = useState("All");
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (forceFresh = false) => {
+    if (!returnsList.length && !issuedBookings.length) {
+      setLoading(true);
+    }
     const [returnsRes, bookingsRes] = await Promise.all([
-      returnsAPI.getAll(),
-      bookingsAPI.getAll({ status: "Approved" }),
+      returnsAPI.getAll(undefined, forceFresh),
+      bookingsAPI.getAll({ status: "Approved" }, forceFresh),
     ]);
 
     if (returnsRes.success) setReturnsList((returnsRes.data as IReturn[]) || []);
@@ -229,8 +231,15 @@ export default function ReturnsPage() {
         </div>
 
         {/* Content Table */}
-        {loading ? (
-          <Loader fullPage text="Retrieving returns registry..." />
+        {loading && returnsList.length === 0 && issuedBookings.length === 0 ? (
+          <div className="space-y-3">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-[#E4E2DA] p-5 flex items-center justify-between animate-pulse">
+                <div className="h-4 w-48 bg-[#E8E6DF] rounded" />
+                <div className="h-8 w-24 bg-[#E8E6DF] rounded-full" />
+              </div>
+            ))}
+          </div>
         ) : activeTab === "active" ? (
           /* Active Issued Tab */
           filteredActive.length === 0 ? (

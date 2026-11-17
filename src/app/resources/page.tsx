@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import ResourceCard from "@/components/resources/ResourceCard";
 import ResourceTable from "@/components/resources/ResourceTable";
@@ -8,8 +8,8 @@ import ResourceFilters from "@/components/resources/ResourceFilters";
 import ResourceForm from "@/components/resources/ResourceForm";
 import Modal from "@/components/common/Modal";
 import Button from "@/components/common/Button";
-import Loader from "@/components/common/Loader";
 import EmptyState from "@/components/common/EmptyState";
+import { InventorySkeleton } from "@/components/common/Skeletons";
 import { useResources } from "@/hooks/useResources";
 import type { IResource } from "@/types";
 import { Plus, Download, Package } from "lucide-react";
@@ -17,6 +17,7 @@ import { exportToCSV } from "@/lib/api";
 
 export default function ResourcesPage() {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [available, setAvailable] = useState("all");
   const [view, setView] = useState<"grid" | "table">("grid");
@@ -25,10 +26,20 @@ export default function ResourcesPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const filters: Record<string, string> = {};
-  if (search) filters.search = search;
-  if (category !== "All") filters.category = category;
-  if (available !== "all") filters.available = available;
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [search]);
+
+  const filters = useMemo(() => {
+    const f: Record<string, string> = {};
+    if (debouncedSearch) f.search = debouncedSearch;
+    if (category !== "All") f.category = category;
+    if (available !== "all") f.available = available;
+    return f;
+  }, [debouncedSearch, category, available]);
 
   const { resources, loading, createResource, updateResource, deleteResource } =
     useResources(filters);
@@ -126,8 +137,19 @@ export default function ResourcesPage() {
         />
 
         {/* Content Area */}
-        {loading ? (
-          <Loader fullPage text="Retrieving equipment inventory..." />
+        {loading && resources.length === 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-[#E4E2DA] h-[340px] animate-pulse p-4 flex flex-col justify-between">
+                <div className="h-40 bg-[#E8E6DF] rounded-xl" />
+                <div className="space-y-2">
+                  <div className="h-3 w-20 bg-[#E8E6DF] rounded-full" />
+                  <div className="h-4 w-44 bg-[#E8E6DF] rounded" />
+                </div>
+                <div className="h-2 w-full bg-[#E8E6DF] rounded-full" />
+              </div>
+            ))}
+          </div>
         ) : resources.length === 0 ? (
           <EmptyState
             title="No Resources Found"

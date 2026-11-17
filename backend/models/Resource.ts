@@ -47,6 +47,9 @@ const ResourceSchema = new Schema<ResourceDocument>(
 ResourceSchema.index({ name: "text", description: "text" });
 ResourceSchema.index({ category: 1 });
 ResourceSchema.index({ isActive: 1 });
+ResourceSchema.index({ isActive: 1, createdAt: -1 });
+ResourceSchema.index({ isActive: 1, available: 1 });
+ResourceSchema.index({ isActive: 1, category: 1 });
 
 const Resource: Model<ResourceDocument> =
   mongoose.models.Resource ||

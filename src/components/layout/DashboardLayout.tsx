@@ -1,19 +1,16 @@
 "use client";
 
-import TopNav from "./TopNav";
+import React from "react";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
   title?: string;
 }
 
+/**
+ * DashboardLayout passthrough wrapper to maintain backward compatibility.
+ * Persistent layout navigation shell is mounted at the root level in src/app/layout.tsx.
+ */
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  return (
-    <div className="min-h-screen bg-[#F4F3EF]">
-      <TopNav />
-      <main className="max-w-[1280px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {children}
-      </main>
-    </div>
-  );
+  return <>{children}</>;
 }

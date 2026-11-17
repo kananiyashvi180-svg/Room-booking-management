@@ -72,9 +72,19 @@ export default function ResourceDetailPage({
 
   if (loading) {
     return (
-      <DashboardLayout title="Resource Details">
-        <Loader fullPage text="Retrieving resource record..." />
-      </DashboardLayout>
+      <div className="max-w-5xl mx-auto space-y-6 animate-pulse">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 bg-[#E8E6DF] rounded-xl" />
+          <div className="space-y-1.5">
+            <div className="h-6 w-60 bg-[#E8E6DF] rounded" />
+            <div className="h-3 w-36 bg-[#E8E6DF] rounded" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2 bg-white rounded-2xl border border-[#E4E2DA] h-72 p-6" />
+          <div className="bg-white rounded-2xl border border-[#E4E2DA] h-72 p-6" />
+        </div>
+      </div>
     );
   }
 

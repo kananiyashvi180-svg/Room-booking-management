@@ -22,7 +22,8 @@ export async function GET(req: NextRequest) {
         populate: { path: "resource" },
       })
       .populate("returnRecord")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     return NextResponse.json(successResponse(history), { status: 200 });
   } catch (error) {
